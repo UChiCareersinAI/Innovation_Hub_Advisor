@@ -542,8 +542,191 @@ function formatForOutput(row, format) {
 }
 
 export default function AdvisorTool() {
+  const [mode, setMode] = useState("newsletter");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [filters, setFilters] = useState({ industry: [], type: [], roleType: [], roleTag: [], metcalf: [], newsletterType: [], removalDateFrom: "", removalDateTo: "" });
+  const [newsletterOutput, setNewsletterOutput] = useState([]);
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [outputFormat, setOutputFormat] = useState("plain");
+  const [showFlagged, setShowFlagged] = useState(true);
+  const chatEndRef = useRef(null);
+  const [fbForm, setFbForm] = useState({ email: "", feedbackType: "", description: "" });
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbResult, setFbResult] = useState(null);
+  const [ldForm, setLdForm] = useState({ newsletter: [], resourceType: '', url: '', removalDate: '', emailAddress: '' });
+  const [ldSubmitting, setLdSubmitting] = useState(false);
+  const [ldResult, setLdResult] = useState(null);
 
-  // ── ADVISING HUB LOGIC ─────────────────────────────────────────────────────
+  // Advising hub state
+  const [studentName, setStudentName] = useState("");
+  const [sessionTypes, setSessionTypes] = useState([]);
+  const [advisingNotes, setAdvisingNotes] = useState("");
+  const [locationPref, setLocationPref] = useState("");
+  const [companySizes, setCompanySizes] = useState([]);
+  const [roleTypePrefs, setRoleTypePrefs] = useState([]);
+  const [resourceTypeFilter, setResourceTypeFilter] = useState([]);
+  const [advisingMatches, setAdvisingMatches] = useState(null);
+  const [activeTypeFilter, setActiveTypeFilter] = useState([]);
+  const [advisingSelected, setAdvisingSelected] = useState({});
+  const [advisingDraft, setAdvisingDraft] = useState("");
+  const [advisingMatchLoading, setAdvisingMatchLoading] = useState(false);
+  const [advisingDraftLoading, setAdvisingDraftLoading] = useState(false);
+  const [advisingStep, setAdvisingStep] = useState("input");
+
+  // Load sheet on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const values = await fetchSheetData();
+        const parsed = parseRows(values).filter((r) => !isExpired(r));
+      console.log("Newsletter values:", parsed.slice(0,3).map(r => r["Newsletter this week?"]));
+        setRows(parsed);
+      } catch (e) {
+        setLoadError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Reset selected rows when newsletter output changes
+  useEffect(() => {
+    const ids = new Set(newsletterOutput.map((_, i) => i));
+    setSelectedRows(ids);
+  }, [newsletterOutput]);
+
+  // Build newsletter output when filters change (newsletter mode)
+  useEffect(() => {
+    if (mode !== "newsletter") return;
+    let filtered = rows.filter((r) => r["Newsletter this week?"] === "TRUE" || r["Newsletter this week?"] === "true" || r["Newsletter this week?"] === "1" || r["Newsletter this week?"] === "true" || r["Newsletter this week?"] === "1");
+    if (filters.industry.length > 0) {
+      filtered = filtered.filter((r) =>
+        filters.industry.some((ind) => (r["Industry"] || "").includes(ind))
+      );
+    }
+    if (filters.type.length > 0)
+      filtered = filtered.filter((r) => filters.type.includes(r["Resource Type [External Search]"]));
+    if (filters.industry.length > 0)
+      filtered = filtered.filter((r) => filters.industry.some((ind) => (r["Industry"] || "").includes(ind)));
+    if (filters.roleType.length > 0)
+      filtered = filtered.filter((r) => filters.roleType.some((rt) => (r["Role Type"] || "").includes(rt)));
+    if (filters.roleTag.length > 0)
+      filtered = filtered.filter((r) => filters.roleTag.some((tag) => (r["Role Tag"] || "").includes(tag)));
+    if (filters.metcalf.length > 0)
+      filtered = filtered.filter((r) => filters.metcalf.includes(r["Metcalf?"]));
+    if (filters.newsletterType.length > 0)
+      filtered = filtered.filter((r) => filters.newsletterType.some((nt) => (r["Newsletter Type"] || "").includes(nt)));
+    if (filters.removalDateFrom || filters.removalDateTo) {
+      filtered = filtered.filter((r) => {
+        const rd = r["Removal Date [Internal]"];
+        if (!rd) return true;
+        const d = new Date(rd);
+        if (isNaN(d)) return true;
+        if (filters.removalDateFrom && d < new Date(filters.removalDateFrom)) return false;
+        if (filters.removalDateTo && d > new Date(filters.removalDateTo)) return false;
+        return true;
+      });
+    }
+    const formatted = filtered.map(formatNewsletterRow);
+    // Sort within each resource type: Metcalf TRUE first, then soonest removal date, then title
+    formatted.sort((a, b) => {
+      // Same resource type grouping is handled by sectionLabels rendering
+      const aMetcalf = a.row["Metcalf?"] === "TRUE" ? 0 : 1;
+      const bMetcalf = b.row["Metcalf?"] === "TRUE" ? 0 : 1;
+      if (aMetcalf !== bMetcalf) return aMetcalf - bMetcalf;
+      const aDate = new Date(a.row["Removal Date [Internal]"] || "9999-12-31");
+      const bDate = new Date(b.row["Removal Date [Internal]"] || "9999-12-31");
+      if (aDate - bDate !== 0) return aDate - bDate;
+      return (a.row["Title"] || "").localeCompare(b.row["Title"] || "");
+    });
+    setNewsletterOutput(formatted);
+  }, [rows, filters, mode]);
+
+  // Scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  const toggleFilter = (bucket, val) => {
+    setFilters((prev) => {
+      const current = prev[bucket];
+      return {
+        ...prev,
+        [bucket]: current.includes(val) ? current.filter((v) => v !== val) : [...current, val],
+      };
+    });
+  };
+
+  const roleTypes = [...new Set(rows.flatMap((r) => (r["Role Type"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
+  const roleTags = [...new Set(rows.flatMap((r) => (r["Role Tag"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
+  const locations = [...new Set(rows.map((r) => r["Location"]).filter(Boolean))].sort();
+  const removalDates = [...new Set(rows.map((r) => r["Removal Date [Internal]"]).filter(Boolean))].sort();
+  [...new Set(rows.flatMap((r) => (r["Role Type"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
+  [...new Set(rows.flatMap((r) => (r["Role Tag"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
+  [...new Set(rows.map((r) => r["Location"]).filter(Boolean))].sort();
+  [...new Set(rows.map((r) => r["Date"]).filter(Boolean))].sort();
+  const industries = [...new Set(
+    rows.flatMap((r) => (r["Industry"] || "").split(",").map((s) => s.trim()).filter(Boolean))
+  )].sort();
+
+  const resourceTypes = [...new Set(rows.map((r) => r["Resource Type [External Search]"]).filter(Boolean))].sort();
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setChatLoading(true);
+
+    try {
+      // Build resource context for Claude
+      const liveRows = rows.filter((r) => !isExpired(r));
+      const resourceContext = liveRows.map((r) => ({
+        type: r["Resource Type [External Search]"],
+        title: r["Title"],
+        employer: r["Employer/Host"],
+        industry: r["Industry"],
+        location: r["Location"],
+        date: r["Date"],
+        oneliner: r["One-liner"],
+        url: r["URL"],
+        roleType: r["Role Type"],
+        roleTag: r["Role Tag"],
+        flag: flagSeverity(r) || "none",
+        flagMsg: r["Failure Message"] || "",
+      }));
+
+      const systemPrompt = `You are an advisor tool for UChicago Career Advancement staff. You help advisors find relevant career resources for students from the Innovation Hub database.
+
+When given advising session notes, identify the most relevant resources for that student's situation. Return a bulleted list formatted for an advising email, grouped by resource type. 
+
+For each resource:
+- Format: • [Title](URL) | Employer | Location | Deadline
+- If the resource has a flag (FAIL or WARN), add ⚠️ before it and note the flag message in parentheses after the entry
+- Only include resources that are genuinely relevant to the student's situation
+- Group by: Internships, Full-Time Roles, Events & Programs, Tools & Resources
+
+Be concise. The output should be paste-ready for an advising follow-up email.
+
+Here is the current Innovation Hub database (${liveRows.length} live resources):
+${JSON.stringify(resourceContext, null, 2)}`;
+
+      const reply = await callClaude(systemPrompt, userMsg);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    } catch (e) {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  // ── SESSION TYPES ──────────────────────────────────────────────────────────
   const SESSION_TYPES = [
     { value: "intro-first-year", label: "Intro Meeting — First Years",
       resourceDefaults: ["resume", "tools", "programs"],
@@ -733,8 +916,7 @@ export default function AdvisorTool() {
     setCompanySizes([]); setRoleTypePrefs([]); setResourceTypeFilter([]);
     setActiveTypeFilter([]); setAdvisingMatches(null); setAdvisingSelected({});
     setAdvisingDraft(""); setAdvisingStep("input");
-  };
-  };
+  };;
 
   const copyNewsletter = () => {
     const sectionOrder = [
@@ -783,189 +965,6 @@ export default function AdvisorTool() {
   const clearAll = () => setFilters({ industry: [], type: [], roleType: [], roleTag: [], metcalf: [], newsletterType: [], removalDateFrom: "", removalDateTo: "" });
   const newsletterOptions = ["AI, Tech, and Entrepreneurship", "Science & Research", "Healthcare & Global Health", "None / Hold"];
   const resourceTypeOptions = ["Internship- Summer", "Internship- Academic Year", "Full Time Role", "Event", "Program", "Cool Tools & Resources", "Chatbot Prompt", "Career Advisors", "Other"];
-
-
-  const [mode, setMode] = useState("newsletter");
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [filters, setFilters] = useState({ industry: [], type: [], roleType: [], roleTag: [], metcalf: [], newsletterType: [], removalDateFrom: "", removalDateTo: "" });
-  const [newsletterOutput, setNewsletterOutput] = useState([]);
-  const [selectedRows, setSelectedRows] = useState(new Set());
-  const [chatMessages, setChatMessages] = useState([]);
-  // Advising hub state
-  const [studentName, setStudentName] = useState("");
-  const [sessionTypes, setSessionTypes] = useState([]);
-  const [advisingNotes, setAdvisingNotes] = useState("");
-  const [locationPref, setLocationPref] = useState("");
-  const [companySizes, setCompanySizes] = useState([]);
-  const [roleTypePrefs, setRoleTypePrefs] = useState([]);
-  const [resourceTypeFilter, setResourceTypeFilter] = useState([]);
-  const [advisingMatches, setAdvisingMatches] = useState(null);
-  const [activeTypeFilter, setActiveTypeFilter] = useState([]);
-  const [advisingSelected, setAdvisingSelected] = useState({});
-  const [advisingDraft, setAdvisingDraft] = useState("");
-  const [advisingMatchLoading, setAdvisingMatchLoading] = useState(false);
-  const [advisingDraftLoading, setAdvisingDraftLoading] = useState(false);
-  const [advisingStep, setAdvisingStep] = useState("input");
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [outputFormat, setOutputFormat] = useState("plain");
-  const [showFlagged, setShowFlagged] = useState(true);
-  const chatEndRef = useRef(null);
-  const [fbForm, setFbForm] = useState({ email: "", feedbackType: "", description: "" });
-  const [fbSubmitting, setFbSubmitting] = useState(false);
-  const [fbResult, setFbResult] = useState(null);
-  const [ldForm, setLdForm] = useState({ newsletter: [], resourceType: '', url: '', removalDate: '', emailAddress: '' });
-  const [ldSubmitting, setLdSubmitting] = useState(false);
-  const [ldResult, setLdResult] = useState(null);
-
-  // Load sheet on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const values = await fetchSheetData();
-        const parsed = parseRows(values).filter((r) => !isExpired(r));
-      console.log("Newsletter values:", parsed.slice(0,3).map(r => r["Newsletter this week?"]));
-        setRows(parsed);
-      } catch (e) {
-        setLoadError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  // Reset selected rows when newsletter output changes
-  useEffect(() => {
-    const ids = new Set(newsletterOutput.map((_, i) => i));
-    setSelectedRows(ids);
-  }, [newsletterOutput]);
-
-  // Build newsletter output when filters change (newsletter mode)
-  useEffect(() => {
-    if (mode !== "newsletter") return;
-    let filtered = rows.filter((r) => r["Newsletter this week?"] === "TRUE" || r["Newsletter this week?"] === "true" || r["Newsletter this week?"] === "1" || r["Newsletter this week?"] === "true" || r["Newsletter this week?"] === "1");
-    if (filters.industry.length > 0) {
-      filtered = filtered.filter((r) =>
-        filters.industry.some((ind) => (r["Industry"] || "").includes(ind))
-      );
-    }
-    if (filters.type.length > 0)
-      filtered = filtered.filter((r) => filters.type.includes(r["Resource Type [External Search]"]));
-    if (filters.industry.length > 0)
-      filtered = filtered.filter((r) => filters.industry.some((ind) => (r["Industry"] || "").includes(ind)));
-    if (filters.roleType.length > 0)
-      filtered = filtered.filter((r) => filters.roleType.some((rt) => (r["Role Type"] || "").includes(rt)));
-    if (filters.roleTag.length > 0)
-      filtered = filtered.filter((r) => filters.roleTag.some((tag) => (r["Role Tag"] || "").includes(tag)));
-    if (filters.metcalf.length > 0)
-      filtered = filtered.filter((r) => filters.metcalf.includes(r["Metcalf?"]));
-    if (filters.newsletterType.length > 0)
-      filtered = filtered.filter((r) => filters.newsletterType.some((nt) => (r["Newsletter Type"] || "").includes(nt)));
-    if (filters.removalDateFrom || filters.removalDateTo) {
-      filtered = filtered.filter((r) => {
-        const rd = r["Removal Date [Internal]"];
-        if (!rd) return true;
-        const d = new Date(rd);
-        if (isNaN(d)) return true;
-        if (filters.removalDateFrom && d < new Date(filters.removalDateFrom)) return false;
-        if (filters.removalDateTo && d > new Date(filters.removalDateTo)) return false;
-        return true;
-      });
-    }
-    const formatted = filtered.map(formatNewsletterRow);
-    // Sort within each resource type: Metcalf TRUE first, then soonest removal date, then title
-    formatted.sort((a, b) => {
-      // Same resource type grouping is handled by sectionLabels rendering
-      const aMetcalf = a.row["Metcalf?"] === "TRUE" ? 0 : 1;
-      const bMetcalf = b.row["Metcalf?"] === "TRUE" ? 0 : 1;
-      if (aMetcalf !== bMetcalf) return aMetcalf - bMetcalf;
-      const aDate = new Date(a.row["Removal Date [Internal]"] || "9999-12-31");
-      const bDate = new Date(b.row["Removal Date [Internal]"] || "9999-12-31");
-      if (aDate - bDate !== 0) return aDate - bDate;
-      return (a.row["Title"] || "").localeCompare(b.row["Title"] || "");
-    });
-    setNewsletterOutput(formatted);
-  }, [rows, filters, mode]);
-
-  // Scroll chat to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  const toggleFilter = (bucket, val) => {
-    setFilters((prev) => {
-      const current = prev[bucket];
-      return {
-        ...prev,
-        [bucket]: current.includes(val) ? current.filter((v) => v !== val) : [...current, val],
-      };
-    });
-  };
-
-  const roleTypes = [...new Set(rows.flatMap((r) => (r["Role Type"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
-  const roleTags = [...new Set(rows.flatMap((r) => (r["Role Tag"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
-  const locations = [...new Set(rows.map((r) => r["Location"]).filter(Boolean))].sort();
-  const removalDates = [...new Set(rows.map((r) => r["Removal Date [Internal]"]).filter(Boolean))].sort();
-  [...new Set(rows.flatMap((r) => (r["Role Type"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
-  [...new Set(rows.flatMap((r) => (r["Role Tag"] || "").split(",").map((s) => s.trim()).filter(Boolean)))].sort();
-  [...new Set(rows.map((r) => r["Location"]).filter(Boolean))].sort();
-  [...new Set(rows.map((r) => r["Date"]).filter(Boolean))].sort();
-  const industries = [...new Set(
-    rows.flatMap((r) => (r["Industry"] || "").split(",").map((s) => s.trim()).filter(Boolean))
-  )].sort();
-
-  const resourceTypes = [...new Set(rows.map((r) => r["Resource Type [External Search]"]).filter(Boolean))].sort();
-
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = chatInput.trim();
-    setChatInput("");
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setChatLoading(true);
-
-    try {
-      // Build resource context for Claude
-      const liveRows = rows.filter((r) => !isExpired(r));
-      const resourceContext = liveRows.map((r) => ({
-        type: r["Resource Type [External Search]"],
-        title: r["Title"],
-        employer: r["Employer/Host"],
-        industry: r["Industry"],
-        location: r["Location"],
-        date: r["Date"],
-        oneliner: r["One-liner"],
-        url: r["URL"],
-        roleType: r["Role Type"],
-        roleTag: r["Role Tag"],
-        flag: flagSeverity(r) || "none",
-        flagMsg: r["Failure Message"] || "",
-      }));
-
-      const systemPrompt = `You are an advisor tool for UChicago Career Advancement staff. You help advisors find relevant career resources for students from the Innovation Hub database.
-
-When given advising session notes, identify the most relevant resources for that student's situation. Return a bulleted list formatted for an advising email, grouped by resource type. 
-
-For each resource:
-- Format: • [Title](URL) | Employer | Location | Deadline
-- If the resource has a flag (FAIL or WARN), add ⚠️ before it and note the flag message in parentheses after the entry
-- Only include resources that are genuinely relevant to the student's situation
-- Group by: Internships, Full-Time Roles, Events & Programs, Tools & Resources
-
-Be concise. The output should be paste-ready for an advising follow-up email.
-
-Here is the current Innovation Hub database (${liveRows.length} live resources):
-${JSON.stringify(resourceContext, null, 2)}`;
-
-      const reply = await callClaude(systemPrompt, userMsg);
-      setChatMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch (e) {
-      setChatMessages((prev) => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
-    } finally {
-      setChatLoading(false);
-    }
 
   const toggleNewsletter = (val) => {
     setLdForm((prev) => {
@@ -1470,39 +1469,45 @@ ${JSON.stringify(resourceContext, null, 2)}`;
                     ))
                   )}
                   {Object.values(advisingSelected).filter(Boolean).length > 0 && (
-                    <button onClick={handleAdvisingDraft} disabled={advisingDraftLoading}
-                      style={{ marginTop: "10px", background: "#800000", color: "#fff", border: "none", borderRadius: "5px", padding: "9px 20px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                      {advisingDraftLoading ? "Drafting…" : `Draft Email with ${Object.values(advisingSelected).filter(Boolean).length} Resource${Object.values(advisingSelected).filter(Boolean).length > 1 ? "s" : ""}`}
-                    </button>
+                    <div style={{ marginTop: "14px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "10px" }}>Selected Resources</div>
+                      <ul style={{ margin: "0 0 14px 0", padding: "0 0 0 18px", listStyle: "disc" }}>
+                        {advisingFilteredMatches.filter(r => advisingSelected[r.id]).map(r => (
+                          <li key={r.id} style={{ fontSize: "13px", color: "#000", lineHeight: 1.6, marginBottom: "4px" }}>
+                            <strong>{r.title}</strong>
+                            {r.employer ? ` — ${r.employer}` : ""}
+                            {r.deadline && r.deadline !== "Rolling" ? ` | Due: ${r.deadline}` : ""}
+                            {r.url ? <span style={{ color: "#737373" }}>{" "}({r.url})</span> : ""}
+                            {r.oneliner ? <span style={{ color: "#737373", fontSize: "12px" }}><br />{r.oneliner}</span> : ""}
+                          </li>
+                        ))}
+                      </ul>
+                      <button onClick={() => {
+                        const items = advisingFilteredMatches.filter(r => advisingSelected[r.id]);
+                        const html = items.map(r => {
+                          const titlePart = r.url
+                            ? `<b><a href="${r.url}" style="color:#800000;">${r.title}</a></b>`
+                            : `<b>${r.title}</b>`;
+                          const employerPart = r.employer ? ` — <b>${r.employer}</b>` : "";
+                          const deadlinePart = (r.deadline && r.deadline !== "Rolling" && r.deadline !== "N/A")
+                            ? ` | Due: ${r.deadline}` : "";
+                          const onelinerPart = r.oneliner ? `<br/>${r.oneliner}` : "";
+                          return `<p style="margin:0 0 10px 0;">${titlePart}${employerPart}${deadlinePart}${onelinerPart}</p>`;
+                        }).join("");
+                        const blob = new Blob([html], { type: "text/html" });
+                        const item = new ClipboardItem({ "text/html": blob });
+                        navigator.clipboard.write([item]);
+                      }}
+                        style={{ background: "#800000", color: "#fff", border: "none", borderRadius: "5px", padding: "9px 20px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                        Copy Resources
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
-              {(advisingDraft || advisingDraftLoading) && (
-                <div style={{ background: "#F9F9F9", borderRadius: "8px", padding: "20px", border: "1px solid #D9D9D9" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "12px" }}>Email Draft</div>
-                  {advisingDraftLoading ? (
-                    <div style={{ color: "#737373", fontSize: "13px" }}>Writing draft…</div>
-                  ) : (
-                    <>
-                      <textarea value={advisingDraft} onChange={e => setAdvisingDraft(e.target.value)}
-                        style={{ width: "100%", minHeight: "220px", padding: "12px", borderRadius: "5px", border: "1px solid #D9D9D9", background: "#fff", color: "#000", fontSize: "13px", lineHeight: 1.6, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-                      <div style={{ marginTop: "10px", display: "flex", gap: "10px" }}>
-                        <button onClick={() => navigator.clipboard.writeText(advisingDraft)}
-                          style={{ background: "#800000", color: "#fff", border: "none", borderRadius: "5px", padding: "8px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                          Copy to Clipboard
-                        </button>
-                        <button onClick={handleAdvisingDraft}
-                          style={{ background: "transparent", color: "#737373", border: "1px solid #D9D9D9", borderRadius: "5px", padding: "7px 14px", fontSize: "13px", cursor: "pointer" }}>
-                          Regenerate
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+
             </div>
           )}
-
         </div>
       </div>
     </div>
