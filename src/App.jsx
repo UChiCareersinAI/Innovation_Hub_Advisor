@@ -467,8 +467,8 @@ function formatForOutput(row, format) {
     const link = (text, href) => href ? `<a href="${href}" style="color:#800000;text-decoration:none;">${text}</a>` : text;
     const bold = (text) => `<strong>${text}</strong>`;
     const italic = (text) => `<em>${text}</em>`;
-    const center = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.4;text-align:center;margin:0 0 12px 0;padding:0 20px;">${text}</p>`;
-    const line = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.4;margin:0 0 12px 0;padding:0 20px;">${text}</p>`;
+    const center = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;margin:0 0 4px 0;padding:0 20px;">${text}</p>`;
+    const line = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;margin:0 0 4px 0;padding:0 20px;">${text}</p>`;
     const pipe = " | ";
 
     const tagColors = {
@@ -479,19 +479,22 @@ function formatForOutput(row, format) {
 
     const renderTags = (tagStr) => {
       if (!tagStr) return "";
-      return tagStr.split(",").map(t => t.trim()).filter(Boolean).map(t => {
+      const validTags = ["Technical AI", "General AI", "Startup"];
+      return tagStr.split(",").map(t => t.trim()).filter(t => validTags.includes(t)).map(t => {
         const colors = tagColors[t] || { bg: "#ccc", text: "#000" };
         return `<span style="display:inline-block;background:${colors.bg};color:${colors.text};font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;margin-left:6px;vertical-align:middle;">${t}</span>`;
       }).join("");
     };
 
     if (["Full Time Role", "Internship- Summer", "Internship- Academic Year"].includes(type)) {
-      const parts = [bold(link(employer, url)), bold(title), location ? italic(location) : null, date].filter(Boolean);
-      return line(parts.join(pipe) + renderTags(roleTag));
+      const parts = [bold(link(employer, url)), bold(title) + renderTags(roleTag), location ? italic(location) : null, date].filter(Boolean);
+      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
+      return line(parts.join(pipe)) + desc;
     }
     if (type === "Program") {
       const parts = [bold(link(employer, url)), bold(title), location || null, date].filter(Boolean);
-      return line(parts.join(pipe) + renderTags(roleTag));
+      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
+      return center(parts.join(pipe)) + desc;
     }
     if (type === "Career Advisors") {
       const parts = [bold(title), employer, italic(link("Schedule a conversation!", url))].filter(Boolean);
@@ -502,8 +505,9 @@ function formatForOutput(row, format) {
       return line(parts.join(pipe));
     }
     if (type === "Event") {
-      const parts = [bold(link(title, url)), location || null, date || null, oneliner || null].filter(Boolean);
-      return center(parts.join(pipe));
+      const parts = [bold(link(employer, url)), bold(title), location || null, date || null].filter(Boolean);
+      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
+      return center(parts.join(pipe)) + desc;
     }
     if (type === "Chatbot Prompt") {
       return center(oneliner);
