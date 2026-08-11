@@ -403,17 +403,6 @@ const styles = {
     cursor: "pointer",
     marginBottom: "20px",
   },
-  clearBtn: {
-    padding: "6px 12px",
-    fontSize: "11px",
-    fontWeight: "600",
-    color: "#800000",
-    background: "transparent",
-    border: "1px solid #800000",
-    borderRadius: "6px",
-    cursor: "pointer",
-    marginBottom: "8px",
-  },
   statusBar: {
     padding: "8px 32px",
     fontSize: "11px",
@@ -467,8 +456,8 @@ function formatForOutput(row, format) {
     const link = (text, href) => href ? `<a href="${href}" style="color:#800000;text-decoration:none;">${text}</a>` : text;
     const bold = (text) => `<strong>${text}</strong>`;
     const italic = (text) => `<em>${text}</em>`;
-    const center = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;margin:0 0 4px 0;padding:0 20px;">${text}</p>`;
-    const line = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;margin:0 0 4px 0;padding:0 20px;">${text}</p>`;
+    const center = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.4;text-align:center;margin:0 0 12px 0;padding:0 20px;">${text}</p>`;
+    const line = (text) => `<p style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.4;margin:0 0 12px 0;padding:0 20px;">${text}</p>`;
     const pipe = " | ";
 
     const tagColors = {
@@ -479,22 +468,19 @@ function formatForOutput(row, format) {
 
     const renderTags = (tagStr) => {
       if (!tagStr) return "";
-      const validTags = ["Technical AI", "General AI", "Startup"];
-      return tagStr.split(",").map(t => t.trim()).filter(t => validTags.includes(t)).map(t => {
+      return tagStr.split(",").map(t => t.trim()).filter(Boolean).map(t => {
         const colors = tagColors[t] || { bg: "#ccc", text: "#000" };
         return `<span style="display:inline-block;background:${colors.bg};color:${colors.text};font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;margin-left:6px;vertical-align:middle;">${t}</span>`;
       }).join("");
     };
 
     if (["Full Time Role", "Internship- Summer", "Internship- Academic Year"].includes(type)) {
-      const parts = [bold(link(employer, url)), bold(title) + renderTags(roleTag), location ? italic(location) : null, date].filter(Boolean);
-      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
-      return line(parts.join(pipe)) + desc;
+      const parts = [bold(link(employer, url)), bold(title), location ? italic(location) : null, date].filter(Boolean);
+      return line(parts.join(pipe) + renderTags(roleTag));
     }
     if (type === "Program") {
       const parts = [bold(link(employer, url)), bold(title), location || null, date].filter(Boolean);
-      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
-      return center(parts.join(pipe)) + desc;
+      return line(parts.join(pipe) + renderTags(roleTag));
     }
     if (type === "Career Advisors") {
       const parts = [bold(title), employer, italic(link("Schedule a conversation!", url))].filter(Boolean);
@@ -505,9 +491,8 @@ function formatForOutput(row, format) {
       return line(parts.join(pipe));
     }
     if (type === "Event") {
-      const parts = [bold(link(employer, url)), bold(title), location || null, date || null].filter(Boolean);
-      const desc = oneliner ? `<p style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;text-align:center;color:#555;margin:0 0 14px 0;padding:0 20px;">${oneliner}</p>` : `<p style="margin:0 0 14px 0;"></p>`;
-      return center(parts.join(pipe)) + desc;
+      const parts = [bold(link(title, url)), location || null, date || null, oneliner || null].filter(Boolean);
+      return center(parts.join(pipe));
     }
     if (type === "Chatbot Prompt") {
       return center(oneliner);
@@ -554,19 +539,6 @@ export default function AdvisorTool() {
   const [newsletterOutput, setNewsletterOutput] = useState([]);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [outputFormat, setOutputFormat] = useState("plain");
-  const [showFlagged, setShowFlagged] = useState(true);
-  const chatEndRef = useRef(null);
-  const [fbForm, setFbForm] = useState({ email: "", feedbackType: "", description: "" });
-  const [fbSubmitting, setFbSubmitting] = useState(false);
-  const [fbResult, setFbResult] = useState(null);
-  const [ldForm, setLdForm] = useState({ newsletter: [], resourceType: '', url: '', removalDate: '', emailAddress: '' });
-  const [ldSubmitting, setLdSubmitting] = useState(false);
-  const [ldResult, setLdResult] = useState(null);
-
   // Advising hub state
   const [studentName, setStudentName] = useState("");
   const [sessionTypes, setSessionTypes] = useState([]);
@@ -582,6 +554,18 @@ export default function AdvisorTool() {
   const [advisingMatchLoading, setAdvisingMatchLoading] = useState(false);
   const [advisingDraftLoading, setAdvisingDraftLoading] = useState(false);
   const [advisingStep, setAdvisingStep] = useState("input");
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [outputFormat, setOutputFormat] = useState("plain");
+  const [showFlagged, setShowFlagged] = useState(true);
+  const chatEndRef = useRef(null);
+  const [fbForm, setFbForm] = useState({ email: "", feedbackType: "", description: "" });
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbResult, setFbResult] = useState(null);
+  const [ldForm, setLdForm] = useState({ newsletter: [], resourceType: '', url: '', removalDate: '', emailAddress: '' });
+  const [ldSubmitting, setLdSubmitting] = useState(false);
+  const [ldResult, setLdResult] = useState(null);
 
   // Load sheet on mount
   useEffect(() => {
@@ -728,199 +712,7 @@ ${JSON.stringify(resourceContext, null, 2)}`;
     } finally {
       setChatLoading(false);
     }
-  }
-
-  // ── SESSION TYPES ──────────────────────────────────────────────────────────
-  const SESSION_TYPES = [
-    { value: "intro-first-year", label: "Intro Meeting — First Years",
-      resourceDefaults: ["resume", "tools", "programs"],
-      promptContext: "First introduction meeting. Focus action items on resume setup, booking follow-up, exploring career resources. Keep tone welcoming.",
-      defaultActions: ["Download the UChicago resume template and fill in your information.", "Book a follow-up advising session on Handshake for later this quarter."] },
-    { value: "career-exploration", label: "Career Exploration",
-      resourceDefaults: ["programs", "tools"],
-      promptContext: "Career exploration session. Focus on continuing to explore paths, attending events, reflecting on experiences.",
-      defaultActions: ["Continue exploring different career paths — say yes to opportunities and reflect on what you enjoy.", "Book a follow-up session on Handshake to discuss networking strategies."] },
-    { value: "resume-review", label: "Resume Review",
-      resourceDefaults: ["resume"],
-      promptContext: "Resume review session. Focus on specific edits discussed, sending updated resume back by end of next week.",
-      defaultActions: ["Update your resume based on our feedback — each bullet should be 1.5-2 lines: strong action verb + description + results.", "Reply to this email with your updated resume (Word Doc or Google Drive share) by end of next week."] },
-    { value: "job-search", label: "Job Search & Networking",
-      resourceDefaults: ["summer-intern", "ay-intern", "full-time", "tools"],
-      promptContext: "Job search and networking strategy session. Focus on job alerts, LinkedIn follow-ups, informational interviews.",
-      defaultActions: ["Set up job alerts on LinkedIn and Handshake for your target companies.", "Set up at least 3 informational interviews with professionals at companies you're targeting.", "Keep me posted when you get any interview requests!"] },
-    { value: "interview-prep", label: "Interview Prep",
-      resourceDefaults: ["tools"],
-      promptContext: "Interview prep session. Focus on preparing with resources shared, sending thank you note after interview.",
-      defaultActions: ["Prepare for your interview using the resources and feedback from today.", "Send a thank you note to the interviewer within 2 hours of the interview if possible.", "Keep me posted on how it goes!"] },
-    { value: "search-checkin", label: "Internship / Job Search Check-In",
-      resourceDefaults: ["summer-intern", "ay-intern", "full-time"],
-      promptContext: "Mid-search check-in. Focus on next concrete steps in the search.",
-      defaultActions: ["Keep applying broadly — aim for at least 3 new applications this week.", "Book a follow-up session on Handshake to check in on progress."] },
-    { value: "post-internship", label: "Post-Internship & Career Goals Check-In",
-      resourceDefaults: ["full-time", "summer-intern", "resume"],
-      promptContext: "Post-internship check-in. Focus on updating resume with summer experience, clarifying goals for next cycle.",
-      defaultActions: ["Update your resume to reflect your summer experience.", "Book a follow-up session on Handshake once your resume is updated."] },
-    { value: "portfolio-intro", label: "Careers In Portfolio Intro",
-      resourceDefaults: ["resume", "tools", "programs", "summer-intern", "ay-intern"],
-      promptContext: "General Careers In Portfolio intro (not industry-specific). Focus on resume setup, exploring career resources broadly.",
-      defaultActions: ["Download the UChicago resume template and start building it out.", "Explore Career Advancement's Careers In pages for resources and upcoming events.", "Book a follow-up advising session on Handshake."] },
-  ];
-
-  const RESOURCE_TYPE_OPTIONS = [
-    { label: "Resume / Cover Letter", value: "resume", types: ["Cool Tools & Resources", "Career Advisors"] },
-    { label: "AY Internship", value: "ay-intern", types: ["Internship- Academic Year"] },
-    { label: "Summer Internship", value: "summer-intern", types: ["Internship- Summer"] },
-    { label: "Full Time Role", value: "full-time", types: ["Full Time Role"] },
-    { label: "Programs & Events", value: "programs", types: ["Program", "Event"] },
-    { label: "Tools & Resources", value: "tools", types: ["Cool Tools & Resources"] },
-    { label: "Research", value: "research", types: ["Cool Tools & Resources", "Program"] },
-  ];
-
-  const getActiveTypes = (selectedOptions) => {
-    if (!selectedOptions || selectedOptions.length === 0) return null;
-    const types = new Set();
-    selectedOptions.forEach(val => {
-      const opt = RESOURCE_TYPE_OPTIONS.find(o => o.value === val);
-      if (opt) opt.types.forEach(t => types.add(t));
-    });
-    return types;
   };
-
-  const inferResourceTypes = (notes) => {
-    const t = notes.toLowerCase();
-    const chips = [];
-    if (/intern|summer intern/.test(t)) chips.push("summer-intern");
-    if (/academic year|fall intern|ay intern/.test(t)) chips.push("ay-intern");
-    if (/full.?time|new grad|fte/.test(t)) chips.push("full-time");
-    if (/resume|cover letter/.test(t)) chips.push("resume");
-    if (/research|lab|grant/.test(t)) chips.push("research");
-    if (/event|conference|network|trek/.test(t)) chips.push("programs");
-    if (/tool|platform|resource|learn/.test(t)) chips.push("tools");
-    return chips;
-  };
-
-  const scoreAdvisingResource = (resource, notes, locPref, coSizes, rolTyps) => {
-    let score = 0;
-    const text = notes.toLowerCase();
-    const loc = locPref.toLowerCase();
-    const rLoc = ((resource.oneliner || "") + " " + (resource.location || "")).toLowerCase();
-    if (loc) {
-      if (rLoc.includes("remote") || rLoc.includes("virtual")) score += 1;
-      if (rLoc.includes(loc.split(",")[0].trim())) score += 2;
-    }
-    if (coSizes.includes("Startup") && (resource.roleTag || "").includes("Startup")) score += 3;
-    if (coSizes.includes("Startup") && (resource.employerAITag || "") === "AI Native") score += 2;
-    if (rolTyps.includes("Software / Engineering") && (resource.roleTag || "").includes("Technical AI")) score += 2;
-    if (rolTyps.includes("Data Science / ML") && (resource.industry || "").includes("Artificial Intelligence")) score += 2;
-    if (rolTyps.includes("Research") && /research|grant|lab/.test((resource.title || "").toLowerCase())) score += 3;
-    if (rolTyps.includes("Finance / Quant") && (resource.industry || "").includes("Finance")) score += 2;
-    const resourceText = ((resource.title || "") + " " + (resource.oneliner || "") + " " + (resource.industry || "")).toLowerCase();
-    const noteWords = text.split(/\W+/).filter(w => w.length > 3);
-    noteWords.forEach(w => { if (resourceText.includes(w)) score += 0.5; });
-    if (/research|lab|faculty|phd|grant/.test(text) && /research|grant|lab/.test(resourceText)) score += 2;
-    if (/interview|leetcode|prep|practice/.test(text) && /interview|mock/.test(resourceText)) score += 3;
-    if (/resume|cover letter/.test(text) && resource.type === "Career Advisors") score += 3;
-    if (/finance|quant|trading/.test(text) && (resource.industry || "").includes("Finance")) score += 2;
-    if (/startup|founder|vc/.test(text) && (resource.roleTag || "").includes("Startup")) score += 2;
-    if (/healthcare|hospital|biotech/.test(text) && (resource.industry || "").includes("Healthcare")) score += 2;
-    return score;
-  };
-
-  const handleSessionTypeToggle = (val) => {
-    const next = sessionTypes.includes(val) ? sessionTypes.filter(x => x !== val) : [...sessionTypes, val];
-    setSessionTypes(next);
-    const defaults = new Set();
-    next.forEach(st => {
-      const found = SESSION_TYPES.find(s => s.value === st);
-      if (found) found.resourceDefaults.forEach(d => defaults.add(d));
-    });
-    setResourceTypeFilter([...defaults]);
-  };
-
-  const toggleAdvisingArr = (arr, setArr, val) =>
-    setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
-
-  const handleAdvisingMatch = () => {
-    if (!advisingNotes.trim()) return;
-    setAdvisingMatchLoading(true);
-    const inferred = inferResourceTypes(advisingNotes);
-    const sessionDefaults = new Set();
-    sessionTypes.forEach(st => {
-      const found = SESSION_TYPES.find(s => s.value === st);
-      if (found) found.resourceDefaults.forEach(d => sessionDefaults.add(d));
-    });
-    const merged = [...new Set([...sessionDefaults, ...inferred, ...resourceTypeFilter])];
-    setActiveTypeFilter(merged);
-    const activeTypes = getActiveTypes(merged);
-    const liveRows = rows.filter(r => !isExpired(r) && r["Title"] && r["Resource Type [External Search]"]);
-    const resourceObjs = liveRows.map(r => ({
-      id: r["URL"] + r["Title"],
-      type: r["Resource Type [External Search]"],
-      title: r["Title"],
-      oneliner: r["One-liner"] || "",
-      url: r["URL"] || "",
-      deadline: r["Date"] || r["Removal Date [Internal]"] || "Rolling",
-      industry: r["Industry"] || "",
-      location: r["Location"] || "",
-      employer: r["Employer/Host"] || "",
-      roleTag: r["Role Tag"] || "",
-      employerAITag: r["Employer AI Tag"] || "",
-      flag: flagSeverity(r),
-      flagMsg: r["Failure Message"] || "",
-    }));
-    const results = resourceObjs
-      .map(r => ({ ...r, score: scoreAdvisingResource(r, advisingNotes, locationPref, companySizes, roleTypePrefs) }))
-      .filter(r => r.score > 0)
-      .filter(r => !activeTypes || activeTypes.has(r.type))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 12);
-    setAdvisingMatches(results);
-    setAdvisingSelected({});
-    setAdvisingDraft("");
-    setAdvisingStep("review");
-    setAdvisingMatchLoading(false);
-  };
-
-  const advisingFilteredMatches = useMemo(() => {
-    if (!advisingMatches) return null;
-    const activeTypes = getActiveTypes(activeTypeFilter);
-    if (!activeTypes) return advisingMatches;
-    return advisingMatches.filter(r => activeTypes.has(r.type));
-  }, [advisingMatches, activeTypeFilter]);
-
-  const handleAdvisingDraft = async () => {
-    const selectedResources = advisingFilteredMatches ? advisingFilteredMatches.filter(r => advisingSelected[r.id]) : [];
-    if (selectedResources.length === 0) return;
-    setAdvisingDraftLoading(true);
-    setAdvisingStep("draft");
-    const sessionLabels = sessionTypes.map(v => SESSION_TYPES.find(s => s.value === v)?.label).filter(Boolean);
-    const sessionContexts = sessionTypes.map(v => SESSION_TYPES.find(s => s.value === v)?.promptContext).filter(Boolean);
-    const sessionDefaultActions = sessionTypes.flatMap(v => SESSION_TYPES.find(s => s.value === v)?.defaultActions || []);
-    const resourceList = selectedResources.map(r =>
-      `- ${r.title} (${r.type}): ${r.oneliner} | Link: ${r.url} | Deadline: ${r.deadline}${r.flag ? " ⚠️ " + r.flagMsg : ""}`
-    ).join("\n");
-    const contextLines = [
-      locationPref && `Preferred locations: ${locationPref}`,
-      companySizes.length && `Company preferences: ${companySizes.join(", ")}`,
-      roleTypePrefs.length && `Role interests: ${roleTypePrefs.join(", ")}`,
-    ].filter(Boolean).join("\n");
-    const prompt = `You are a UChicago career advisor writing a follow-up email to a student after an advising session.\nStudent name: ${studentName || "the student"}\nSession type(s): ${sessionLabels.length ? sessionLabels.join(", ") : "General advising"}\nSession guidance: ${sessionContexts.join(" ")}\nAdvisor notes: ${advisingNotes}\n${contextLines ? "Student context:\n" + contextLines : ""}\nDefault action items (adapt based on notes):\n${sessionDefaultActions.map(a => "- " + a).join("\n")}\nResources to include:\n${resourceList}\nWrite a follow-up email. Rules: no filler phrases, action items as a clear bulleted list, weave resources near relevant action items, under 250 words, close with invitation to reach out, sign off as [Advisor Name].\nReturn only the email body. No subject line.`;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
-    });
-    const data = await res.json();
-    setAdvisingDraft(data.content?.[0]?.text || "");
-    setAdvisingDraftLoading(false);
-  };
-
-  const resetAdvising = () => {
-    setStudentName(""); setSessionTypes([]); setAdvisingNotes(""); setLocationPref("");
-    setCompanySizes([]); setRoleTypePrefs([]); setResourceTypeFilter([]);
-    setActiveTypeFilter([]); setAdvisingMatches(null); setAdvisingSelected({});
-    setAdvisingDraft(""); setAdvisingStep("input");
-  };;
 
   const copyNewsletter = () => {
     const sectionOrder = [
@@ -1148,28 +940,17 @@ ${JSON.stringify(resourceContext, null, 2)}`;
           )}
           {mode === "advising" && (
             <>
-              <div style={styles.sidebarLabel}>Session Type</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px" }}>
-                {SESSION_TYPES.map(s => (
-                  <button key={s.value} onClick={() => handleSessionTypeToggle(s.value)}
-                    style={{ padding: "5px 8px", borderRadius: "5px", fontSize: "11px", fontWeight: sessionTypes.includes(s.value) ? 600 : 400, border: sessionTypes.includes(s.value) ? "1px solid #800000" : "1px solid #D9D9D9", background: sessionTypes.includes(s.value) ? "rgba(128,0,0,0.08)" : "transparent", color: sessionTypes.includes(s.value) ? "#800000" : "#737373", cursor: "pointer", textAlign: "left" }}>
-                    {s.label}
-                  </button>
-                ))}
+              <div style={styles.sidebarLabel}>How to use</div>
+              <div style={{ fontSize: "12px", color: "#737373", lineHeight: "1.7" }}>
+                Paste your advising session notes into the chat. The tool will identify relevant resources from the live database and format them for a follow-up email.
+                <br /><br />
+                <span style={{ color: "#737373" }}>Example: "Student is a junior interested in ML engineering, targeting summer internships, has Python experience, open to remote."</span>
               </div>
-              <div style={styles.sidebarLabel}>Resources to Include</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px" }}>
-                {RESOURCE_TYPE_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => toggleAdvisingArr(resourceTypeFilter, setResourceTypeFilter, opt.value)}
-                    style={{ padding: "5px 8px", borderRadius: "5px", fontSize: "11px", fontWeight: resourceTypeFilter.includes(opt.value) ? 600 : 400, border: resourceTypeFilter.includes(opt.value) ? "1px solid #2d5a27" : "1px solid #D9D9D9", background: resourceTypeFilter.includes(opt.value) ? "rgba(45,90,39,0.08)" : "transparent", color: resourceTypeFilter.includes(opt.value) ? "#2d5a27" : "#737373", cursor: "pointer", textAlign: "left" }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <div style={styles.sidebarLabel}>Flags</div>
-              <div style={{ fontSize: "11px", color: "#737373", lineHeight: "1.7" }}>
-                <span style={{ color: "#800000" }}>■ FAIL</span> — review before sharing.<br />
-                <span style={{ color: "#e6b432" }}>■ WARN</span> — spot-check before sharing.
+              <div style={{ ...styles.sidebarLabel, marginTop: "24px" }}>Flags</div>
+              <div style={{ fontSize: "12px", color: "#737373", lineHeight: "1.7" }}>
+                <span style={{ color: "#800000" }}>■ FAIL</span> — required field missing or URL dead. Review before sharing with student.
+                <br /><br />
+                <span style={{ color: "#e6b432" }}>■ WARN</span> — data extracted but low confidence. Spot-check before sharing.
               </div>
             </>
           )}
@@ -1182,8 +963,7 @@ ${JSON.stringify(resourceContext, null, 2)}`;
               <div style={{maxWidth:"560px"}}>
                 <div style={{fontSize:"13px",color:"#737373",marginBottom:"20px",lineHeight:"1.6"}}>Submit a new resource to the Innovation Hub. Required fields are marked *.</div>
                 <div style={{marginBottom:"16px"}}>
-                  <div style={{...styles.sidebarLabel, marginBottom:"0px"}}>Include in Newsletter *</div>
-                  <div style={{fontSize:"12px",fontStyle:"italic",color:"#555",marginTop:"0px",marginBottom:"2px"}}>Should this resource be sent in Thursday's Newsletter? If it's a cool tool/resource but not necessarily relevant for Thursday's newsletter, select 'None/Hold' and it will still be available for advising notes.</div>
+                  <div style={styles.sidebarLabel}>Include in Newsletter *</div>
                   <div style={{display:"flex",flexDirection:"column",gap:"6px",marginTop:"6px"}}>
                     {newsletterOptions.map((opt) => (
                       <label key={opt} style={{display:"flex",alignItems:"center",gap:"8px",cursor:"pointer",fontSize:"13px",color:ldForm.newsletter.includes(opt)?"#800000":"#737373"}}>
@@ -1201,8 +981,7 @@ ${JSON.stringify(resourceContext, null, 2)}`;
                   </select>
                 </div>
                 <div style={{marginBottom:"16px"}}>
-                  <div style={{...styles.sidebarLabel, marginBottom:"0px"}}>URL or Contact Info *</div>
-                  <div style={{fontSize:"12px",fontStyle:"italic",color:"#555",marginTop:"0px",marginBottom:"2px"}}>Use 'Preview Link' for Handshake resources!</div>
+                  <div style={styles.sidebarLabel}>URL or Contact Info *</div>
                   <input type="text" value={ldForm.url} onChange={(e) => { setLdForm((p) => ({...p, url: e.target.value})); setLdResult(null); }} placeholder="https://..." style={{width:"100%",marginTop:"6px",padding:"8px 10px",background:"#F9F9F9",border:"1px solid #1e2330",borderRadius:"6px",color:"#000000",fontSize:"13px",outline:"none",boxSizing:"border-box"}} />
                 </div>
                 <div style={{marginBottom:"16px"}}>
@@ -1381,138 +1160,44 @@ ${JSON.stringify(resourceContext, null, 2)}`;
           )}
 
           {mode === "advising" && (
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
-              <div style={{ background: "#F9F9F9", borderRadius: "8px", padding: "20px", border: "1px solid #D9D9D9", marginBottom: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "8px" }}>Student Name</div>
-                <input value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="e.g. Alex Chen"
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: "5px", border: "1px solid #D9D9D9", background: "#fff", color: "#000", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: "14px" }} />
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "8px" }}>Session Notes</div>
-                <textarea value={advisingNotes} onChange={e => setAdvisingNotes(e.target.value)}
-                  placeholder={"Paste bullet-point notes here.\n\n- junior, CS major, ML engineering interest\n- wants summer internship, open to startup\n- resume needs quantified impact bullets"}
-                  style={{ width: "100%", minHeight: "100px", padding: "10px 12px", borderRadius: "5px", border: "1px solid #D9D9D9", background: "#fff", color: "#000", fontSize: "13px", lineHeight: 1.5, resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: "14px" }} />
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "8px" }}>Preferred Locations</div>
-                <input value={locationPref} onChange={e => setLocationPref(e.target.value)} placeholder="e.g. Chicago, New York, Remote"
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: "5px", border: "1px solid #D9D9D9", background: "#fff", color: "#000", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: "8px" }} />
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
-                  {["Chicago", "New York", "San Francisco", "Remote", "Boston", "DC", "Austin"].map(l => (
-                    <button key={l} onClick={() => setLocationPref(prev => prev ? (prev.includes(l) ? prev : prev + ", " + l) : l)}
-                      style={{ fontSize: "11px", padding: "3px 9px", borderRadius: "12px", border: "1px solid #D9D9D9", background: locationPref.includes(l) ? "rgba(128,0,0,0.08)" : "#fff", color: locationPref.includes(l) ? "#800000" : "#737373", cursor: "pointer" }}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "8px" }}>Company Type</div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
-                  {["Startup", "Large Corporation", "Small Business", "Nonprofit", "Government / National Lab"].map(opt => (
-                    <button key={opt} onClick={() => toggleAdvisingArr(companySizes, setCompanySizes, opt)}
-                      style={{ padding: "5px 10px", borderRadius: "12px", fontSize: "11px", border: companySizes.includes(opt) ? "1px solid #800000" : "1px solid #D9D9D9", background: companySizes.includes(opt) ? "rgba(128,0,0,0.08)" : "#fff", color: companySizes.includes(opt) ? "#800000" : "#737373", cursor: "pointer" }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "8px" }}>Role Types of Interest</div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "18px" }}>
-                  {["Software / Engineering", "Data Science / ML", "Research", "Business / Operations", "Product Management", "Design / UX", "Finance / Quant"].map(opt => (
-                    <button key={opt} onClick={() => toggleAdvisingArr(roleTypePrefs, setRoleTypePrefs, opt)}
-                      style={{ padding: "5px 10px", borderRadius: "12px", fontSize: "11px", border: roleTypePrefs.includes(opt) ? "1px solid #800000" : "1px solid #D9D9D9", background: roleTypePrefs.includes(opt) ? "rgba(128,0,0,0.08)" : "#fff", color: roleTypePrefs.includes(opt) ? "#800000" : "#737373", cursor: "pointer" }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button onClick={handleAdvisingMatch} disabled={!advisingNotes.trim() || advisingMatchLoading}
-                    style={{ background: advisingNotes.trim() ? "#800000" : "#D9D9D9", color: advisingNotes.trim() ? "#fff" : "#737373", border: "none", borderRadius: "5px", padding: "9px 20px", fontSize: "13px", fontWeight: 600, cursor: advisingNotes.trim() ? "pointer" : "not-allowed" }}>
-                    {advisingMatchLoading ? "Matching…" : "Find Matching Resources"}
-                  </button>
-                  {advisingStep !== "input" && (
-                    <button onClick={resetAdvising}
-                      style={{ background: "transparent", color: "#737373", border: "1px solid #D9D9D9", borderRadius: "5px", padding: "8px 14px", fontSize: "12px", cursor: "pointer" }}>
-                      Start Over
-                    </button>
-                  )}
-                </div>
-              </div>
-              {advisingFilteredMatches !== null && (
-                <div style={{ background: "#F9F9F9", borderRadius: "8px", padding: "20px", border: "1px solid #D9D9D9", marginBottom: "14px" }}>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
-                    <button onClick={() => setActiveTypeFilter([])}
-                      style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "12px", border: activeTypeFilter.length === 0 ? "1px solid #800000" : "1px solid #D9D9D9", background: activeTypeFilter.length === 0 ? "rgba(128,0,0,0.08)" : "#fff", color: activeTypeFilter.length === 0 ? "#800000" : "#737373", cursor: "pointer" }}>All</button>
-                    {RESOURCE_TYPE_OPTIONS.map(opt => (
-                      <button key={opt.value} onClick={() => toggleAdvisingArr(activeTypeFilter, setActiveTypeFilter, opt.value)}
-                        style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "12px", border: activeTypeFilter.includes(opt.value) ? "1px solid #800000" : "1px solid #D9D9D9", background: activeTypeFilter.includes(opt.value) ? "rgba(128,0,0,0.08)" : "#fff", color: activeTypeFilter.includes(opt.value) ? "#800000" : "#737373", cursor: "pointer" }}>
-                        {opt.label}
-                      </button>
-                    ))}
+            <>
+              <div style={styles.outputArea}>
+                {chatMessages.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    <div style={styles.emptyIcon}>✉</div>
+                    <div style={styles.emptyTitle}>Paste your advising notes below</div>
+                    <div style={styles.emptyDesc}>The tool will match relevant resources from the database and format them for a follow-up email.</div>
                   </div>
-                  <div style={{ fontSize: "11px", color: "#737373", marginBottom: "10px" }}>
-                    {advisingFilteredMatches.length} resource{advisingFilteredMatches.length !== 1 ? "s" : ""} · click to select
-                    {Object.values(advisingSelected).filter(Boolean).length > 0 && (
-                      <span style={{ color: "#800000", marginLeft: "10px", fontWeight: 600 }}>
-                        {Object.values(advisingSelected).filter(Boolean).length} selected
-                      </span>
-                    )}
-                  </div>
-                  {advisingFilteredMatches.length === 0 ? (
-                    <div style={{ fontSize: "13px", color: "#737373" }}>No matches for this filter. Try selecting "All".</div>
-                  ) : (
-                    advisingFilteredMatches.map(r => (
-                      <div key={r.id} onClick={() => setAdvisingSelected(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                        style={{ border: advisingSelected[r.id] ? "1px solid #800000" : "1px solid #D9D9D9", borderRadius: "6px", padding: "10px 12px", marginBottom: "7px", cursor: "pointer", background: advisingSelected[r.id] ? "rgba(128,0,0,0.04)" : "#fff", display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                        <div style={{ marginTop: "2px", width: "16px", height: "16px", borderRadius: "4px", border: advisingSelected[r.id] ? "2px solid #800000" : "2px solid #D9D9D9", background: advisingSelected[r.id] ? "#800000" : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {advisingSelected[r.id] && <span style={{ color: "#fff", fontSize: "10px" }}>✓</span>}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "3px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 6px", borderRadius: "3px", background: "#F0F0F0", color: "#737373", textTransform: "uppercase", letterSpacing: "0.04em" }}>{r.type}</span>
-                            {r.flag === "fail" && <span style={{ fontSize: "10px", color: "#800000", fontWeight: 600 }}>⚠ FAIL</span>}
-                            {r.flag === "warn" && <span style={{ fontSize: "10px", color: "#e6b432", fontWeight: 600 }}>⚠ WARN</span>}
-                          </div>
-                          <div style={{ fontWeight: 600, fontSize: "13px", color: "#000", marginBottom: "2px" }}>{r.title}</div>
-                          <div style={{ fontSize: "12px", color: "#737373", lineHeight: 1.4 }}>{r.oneliner}</div>
-                          <div style={{ fontSize: "11px", color: "#A6A6A6", marginTop: "3px" }}>Deadline: {r.deadline}</div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {Object.values(advisingSelected).filter(Boolean).length > 0 && (
-                    <div style={{ marginTop: "14px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#800000", marginBottom: "10px" }}>Selected Resources</div>
-                      <ul style={{ margin: "0 0 14px 0", padding: "0 0 0 18px", listStyle: "disc" }}>
-                        {advisingFilteredMatches.filter(r => advisingSelected[r.id]).map(r => (
-                          <li key={r.id} style={{ fontSize: "13px", color: "#000", lineHeight: 1.6, marginBottom: "4px" }}>
-                            <strong>{r.title}</strong>
-                            {r.employer ? ` — ${r.employer}` : ""}
-                            {r.deadline && r.deadline !== "Rolling" ? ` | Due: ${r.deadline}` : ""}
-                            {r.url ? <span style={{ color: "#737373" }}>{" "}({r.url})</span> : ""}
-                            {r.oneliner ? <span style={{ color: "#737373", fontSize: "12px" }}><br />{r.oneliner}</span> : ""}
-                          </li>
-                        ))}
-                      </ul>
-                      <button onClick={() => {
-                        const items = advisingFilteredMatches.filter(r => advisingSelected[r.id]);
-                        const html = items.map(r => {
-                          const titlePart = r.url
-                            ? `<b><a href="${r.url}" style="color:#800000;">${r.title}</a></b>`
-                            : `<b>${r.title}</b>`;
-                          const employerPart = r.employer ? ` — <b>${r.employer}</b>` : "";
-                          const deadlinePart = (r.deadline && r.deadline !== "Rolling" && r.deadline !== "N/A")
-                            ? ` | Due: ${r.deadline}` : "";
-                          const onelinerPart = r.oneliner ? `<br/>${r.oneliner}` : "";
-                          return `<p style="margin:0 0 10px 0;">${titlePart}${employerPart}${deadlinePart}${onelinerPart}</p>`;
-                        }).join("");
-                        const blob = new Blob([html], { type: "text/html" });
-                        const item = new ClipboardItem({ "text/html": blob });
-                        navigator.clipboard.write([item]);
-                      }}
-                        style={{ background: "#800000", color: "#fff", border: "none", borderRadius: "5px", padding: "9px 20px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                        Copy Resources
-                      </button>
+                ) : (
+                  chatMessages.map((msg, i) => (
+                    <div key={i} style={styles.chatMessage(msg.role)}>
+                      <div style={styles.chatBubble(msg.role)}>{msg.content}</div>
                     </div>
-                  )}
-                </div>
-              )}
-
-            </div>
+                  ))
+                )}
+                {chatLoading && (
+                  <div style={styles.chatMessage("assistant")}>
+                    <div style={{ ...styles.chatBubble("assistant"), color: "#737373" }}>Searching database…</div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              <div style={styles.chatInput}>
+                <textarea
+                  style={styles.textarea}
+                  placeholder="Paste advising session notes here…"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); }
+                  }}
+                  rows={2}
+                />
+                <button style={styles.sendBtn(chatLoading)} onClick={handleChatSend} disabled={chatLoading}>
+                  {chatLoading ? "…" : "Send"}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
