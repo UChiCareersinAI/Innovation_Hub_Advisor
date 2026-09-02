@@ -945,7 +945,7 @@ ${JSON.stringify(resourceContext, null, 2)}`;
         return out;
       }).filter(Boolean);
       if (lines.length === 0) continue;
-      sections.push(label + "\n\n" + lines.join("\n\n"));
+      sections.push(lines.join("\n\n"));
     }
     const text = sections.join("\n\n");
     navigator.clipboard.writeText(text);
