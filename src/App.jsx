@@ -1,76 +1,25 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────
-const SPREADSHEET_ID = "1gd9Ybyq19BwMtoxgY2pMCy2ogVD9ZrFNcu5Tig8jJbo";
-const SHEET_NAME = "Innovation Hub";
 
-// PASTE YOUR SERVICE ACCOUNT PRIVATE KEY HERE (keep the \n line breaks)
-const SERVICE_ACCOUNT_EMAIL = "innovation-hub-reader@careers-in-ai-testing-123.iam.gserviceaccount.com";
+const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxO_iNz1BCRON9BO3jz10xQxct8QwauZsR0B48J0m9Rh7lJG1VscENV-j6tfdSSYwmONw/exec";
 const LINK_DROPPER_URL = "https://script.google.com/macros/s/AKfycbwclZ54wqPLcGvztf18EgGl-Xk3r277bkwCHg-GA5YxP9HcFhUgMkPdF3Rs-V1AeCPUaA/exec";
-const PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC1RDD5cqO1XeRb\nQMU3cpgiPVBVYkKsIB6Esc10m50+rcpRD3fI3lh02UIyAZm7hLdV0TTt6vlC6vPG\n1MW4k90z3Sb2pO/Sc+ZfkaC9R4wqWWoIiz2FzVmNaUyY7x6hGMeUC8dcpBgpYI5H\n1t8lfRJhrP5b93EjhCExub9q9RaN9/HuuFK4LVAkiOCNQscZfGWU8osfXoD3Ibmo\nxVR+PrdP4oa9dzYmr0KZCgFgM/gWBP+ktgXQDmKTyWew9PD1tjcGpQk6h0kP3xBx\nm6j4gBH89bI0jZfeFOFa7rnl/h8iMQW1K3NqfYwdfi7IPskvp5dzGF1GGGO2CdVJ\nSAibV+nRAgMBAAECggEAAYqkBrwQCruNdONMsL13OsvQvFrTWF9xI6sM2p1KmZ53\nYEf7FR9jIH0a74ik/hPJbh04d7PvekoRSDdV0OLPidimCMkTbyO8PDigJa9HW10Y\nLkdLtDY1o7LB04di6EceW+Vw1NUCWFg9ZNyjGFCAwh7wiRemMSbR6YhejuZI5+yg\nf+qPh4KTOthts0PoC0v+fNbpTk4wlwNPFcnLrGhM4m17bYew9Jn8iP5faGMCklGo\ny+jalD0ZNg7N82Q9G7ZLZJkbWWFzHp9H+xGl9q2pHSxUZSK3EG7QlX8fj/lDy855\n5iW8DjzWj1mSBZqpH7lXD49kV6WRp4szWuhW2bCi4QKBgQDX6+MWOb9ffI1erjf4\njlH2RQ8y/Lv9vzEOo78XYnAix9GTsmUffzgllfFl3mCNwJtWlB89BnsyTeg6lhnL\nG8an7W07o/C0x7UnGjeL41kVka8fyBYMNMcGi/6d9F63J5uG86NSMkEXpyYPAA9F\nc+KfOTYm4dCtGvzxLmAUO3wcYQKBgQDW6ZJdQSFTVvch5pJmuNmPjMsdoF05OU6e\nl7lyHSYqU1NblrlBoM2fGjzyshnczNyswWc9t3Svuj3DGGpArT7KQXSvsNehGZ4j\nKzf3Yj2dz1h9+yhO9Fokpyto9We+X5p7XBFGgPYv17TgzfyZLFipO1mrR1YXVcBH\nspdNoWJDcQKBgEH2URB4IcuU7EcxZ+3p5IYcgNEtvmx9XQpA4d7N9r3ZV2AMjrH5\nlnh8/xsEvXBwl8PySjzFXxt2C2zicAzJdn3UnZsrsRw5KlFAxBlbIdrh/6Lw6DNg\naDDK0cUFY24Gjo/CnHE+4v3L1WeduAyao2/K9Y0ZTTuk1AMGDNoBdh/hAoGALOmj\nLNnvnPsPqoYFEnKPBPDngcmBsfPH+ly65J4y26WORhW5oX15e0aAdjfCL+KgO3ov\nmTY9rHu/bIYtrlaGSL5lJFJQvdocsjzV9V0Sg2hRlgJm6hkmvYIyED048RAJuL4E\n3jcVO+pYYqKpp1kdLkC4/JJr63SAOnuYIyEW6AECgYAlCnU9Z5EdJBHsr42JHO0D\nws0mb1SKish1KDMs2EZdo4jjck7BzAMJh3DLw5LgjItxcocUgKCXDs8IFzETsOxg\nsP6riMZOSPK7HovVXJF5cEUjs5WCF9kh56lvcPJpGq+66+SvawjldzXmtf5OJJ6v\nncIG6OszaPFfjP9fTpe9Xw==\n-----END PRIVATE KEY-----\n";
 
-// ─── GOOGLE SHEETS JWT AUTH ─────────────────────────────────────────────────
-async function getAccessToken() {
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "RS256", typ: "JWT" };
-  const payload = {
-    iss: SERVICE_ACCOUNT_EMAIL,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
-    aud: "https://oauth2.googleapis.com/token",
-    exp: now + 3600,
-    iat: now,
-  };
 
-  const encode = (obj) =>
-    btoa(JSON.stringify(obj)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-  const headerB64 = encode(header);
-  const payloadB64 = encode(payload);
-  const signingInput = `${headerB64}.${payloadB64}`;
-
-  // Import private key
-  const pemContents = PRIVATE_KEY.replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
-  const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryDer.buffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(signingInput)
-  );
-
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-  const jwt = `${signingInput}.${signatureB64}`;
-
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
-  });
-
-  const tokenData = await tokenRes.json();
-  return tokenData.access_token;
-}
 
 async function fetchSheetData() {
-  const token = await getAccessToken();
-  const range = encodeURIComponent(`${SHEET_NAME}!A:T`);
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const res = await fetch(SHEET_API_URL);
+
+  if (!res.ok) {
+    throw new Error(`Unable to load sheet data: ${res.status}`);
+  }
+
   const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
   return data.values || [];
 }
 
